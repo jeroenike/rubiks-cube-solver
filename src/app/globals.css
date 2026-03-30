@@ -1,0 +1,65 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 30, 30, 30;
+  --background: #f0f4ff;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: var(--background);
+  font-family: 'Nunito', system-ui, sans-serif;
+  min-height: 100dvh;
+  overscroll-behavior: none;
+}
+
+/* Make touch targets comfortably large */
+button {
+  touch-action: manipulation;
+  user-select: none;
+}
+
+/* Smooth page transitions */
+.page-enter {
+  animation: fadeIn 0.4s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Cube square hover/press feel */
+.cube-square {
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+.cube-square:active {
+  transform: scale(0.92);
+}
+
+/* Step card slide animation */
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.step-animate {
+  animation: slideIn 0.35s ease-out;
+}
+
+/* Confetti bounce */
+@keyframes confettiBounce {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%  { transform: translateY(-20px) rotate(180deg); }
+}
+.confetti-piece {
+  animation: confettiBounce 1.5s ease-in-out infinite;
+}
