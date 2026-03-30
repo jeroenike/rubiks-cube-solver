@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { getMoveInfo } from "@/lib/moveDescriptions";
+import MovesGuide from "@/components/MovesGuide";
 
 // ─── Cube SVG visual ──────────────────────────────────────────────────────────
 // Shows a simplified isometric cube; highlights the active face.
@@ -113,6 +114,7 @@ interface Props {
 export default function SolutionViewer({ moves, onBack }: Props) {
   const [step, setStep] = useState(0);
   const [key, setKey] = useState(0); // triggers re-animation
+  const [showGuide, setShowGuide] = useState(false);
 
   const current = moves[step];
   const info = getMoveInfo(current ?? "");
@@ -145,15 +147,26 @@ export default function SolutionViewer({ moves, onBack }: Props) {
   }, [goNext, goPrev]);
 
   return (
+    <>
+      {showGuide && <MovesGuide onClose={() => setShowGuide(false)} />}
+
     <div className="flex flex-col items-center gap-5 w-full max-w-xl mx-auto px-3 page-enter">
       {/* Header */}
-      <div className="text-center">
-        <h1 className="text-3xl sm:text-4xl font-black text-indigo-700">
-          🧩 Let&apos;s Solve It!
-        </h1>
-        <p className="text-base font-semibold text-gray-500 mt-1">
-          {moves.length} steps total — you can do it! 💪
-        </p>
+      <div className="w-full flex items-start justify-between gap-2">
+        <div>
+          <h1 className="text-3xl sm:text-4xl font-black text-indigo-700">
+            🧩 Let&apos;s Solve It!
+          </h1>
+          <p className="text-base font-semibold text-gray-500 mt-1">
+            {moves.length} steps total — you can do it! 💪
+          </p>
+        </div>
+        <button
+          onClick={() => setShowGuide(true)}
+          className="shrink-0 mt-1 flex items-center gap-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-black text-sm px-3 py-2 rounded-2xl active:scale-95 transition-all shadow-sm"
+        >
+          📖 <span className="hidden sm:inline">Move</span> Guide
+        </button>
       </div>
 
       {/* Progress bar */}
@@ -225,6 +238,16 @@ export default function SolutionViewer({ moves, onBack }: Props) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Confused? hint */}
+      {!isDone && (
+        <button
+          onClick={() => setShowGuide(true)}
+          className="w-full text-center text-sm font-bold text-indigo-400 hover:text-indigo-600 transition-colors -mt-2"
+        >
+          😕 Not sure what <code className="font-mono bg-indigo-50 px-1 rounded">{current}</code> means? Tap here for help!
+        </button>
       )}
 
       {/* Navigation buttons */}
@@ -309,5 +332,6 @@ export default function SolutionViewer({ moves, onBack }: Props) {
         ← Start over with a new cube
       </button>
     </div>
+    </>
   );
 }
