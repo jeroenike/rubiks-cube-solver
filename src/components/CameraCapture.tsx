@@ -159,6 +159,7 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
   const [selectedSquare, setSelectedSquare] = useState<number | null>(null);
   const [capturedFaces, setCapturedFaces] = useState<Partial<Record<FaceKey, Face>>>({});
 
+  const [mirrored, setMirrored] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [solveError, setSolveError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -220,13 +221,21 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
     const vh = video.videoHeight;
     if (!vw || !vh) return;
 
-    // Draw video frame to canvas with cover-fit
+    // Draw video frame to canvas with cover-fit, mirroring horizontally if needed
     const scale = Math.max(CANVAS_SIZE / vw, CANVAS_SIZE / vh);
     const dw = vw * scale;
     const dh = vh * scale;
     const dx = (CANVAS_SIZE - dw) / 2;
     const dy = (CANVAS_SIZE - dh) / 2;
-    ctx.drawImage(video, dx, dy, dw, dh);
+    if (mirrored) {
+      ctx.save();
+      ctx.translate(CANVAS_SIZE, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, dx, dy, dw, dh);
+      ctx.restore();
+    } else {
+      ctx.drawImage(video, dx, dy, dw, dh);
+    }
 
     const colors = extractFaceColors(ctx, GRID_OFFSET, GRID_OFFSET, GRID_SIZE);
     // Always force center to match the known face center color
@@ -414,6 +423,7 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
               playsInline
               muted
               className="absolute inset-0 w-full h-full object-cover"
+              style={mirrored ? { transform: "scaleX(-1)" } : undefined}
             />
             {/* SVG overlay: dim, grid lines, edge color indicators */}
             <svg
@@ -546,12 +556,24 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
             📸 Capture!
           </button>
 
-          <button
-            onClick={onCancel}
-            className="text-sm text-gray-400 underline"
-          >
-            Switch to manual input
-          </button>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setMirrored((m) => !m)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 font-bold text-sm active:scale-95 transition-all shadow-sm ${
+                mirrored
+                  ? "border-indigo-500 bg-indigo-100 text-indigo-700"
+                  : "border-gray-300 bg-white text-gray-600"
+              }`}
+            >
+              ⇆ {mirrored ? "Mirrored on" : "Mirror image"}
+            </button>
+            <button
+              onClick={onCancel}
+              className="text-sm text-gray-400 underline"
+            >
+              Manual input
+            </button>
+          </div>
         </>
       ) : (
         <>
