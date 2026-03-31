@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import {
   Color,
   CubeState,
@@ -115,7 +115,16 @@ interface Props {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function CameraCapture({ onSolve, onCancel }: Props) {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Re-attach stream whenever the video element mounts (it unmounts between phases)
+  const setVideoRef = useCallback((el: HTMLVideoElement | null) => {
+    videoRef.current = el;
+    if (el && streamRef.current) {
+      el.srcObject = streamRef.current;
+      el.play().catch(() => {});
+    }
+  }, []);
   const captureCanvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -341,7 +350,7 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
             className={`relative w-full aspect-square max-w-sm rounded-2xl overflow-hidden bg-black shadow-xl ring-4 ${step.ringClass}`}
           >
             <video
-              ref={videoRef}
+              ref={setVideoRef}
               autoPlay
               playsInline
               muted
