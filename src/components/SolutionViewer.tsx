@@ -255,6 +255,13 @@ export default function SolutionViewer({ moves, onBack }: Props) {
                 {info.description}
               </p>
 
+              {/* Back face reminder — don't rotate the cube */}
+              {info.face === "back" && (
+                <div className="mt-3 bg-blue-50 border border-blue-300 rounded-xl px-4 py-2 text-blue-800 font-bold text-sm">
+                  🟩 Keep <strong>GREEN toward you</strong> — reach around to the BLUE face at the back. Do <strong>not</strong> rotate the whole cube!
+                </div>
+              )}
+
               {/* Repetition hint */}
               {info.direction === "twice" && (
                 <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 text-amber-800 font-bold text-sm">
