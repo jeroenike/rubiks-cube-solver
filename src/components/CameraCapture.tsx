@@ -19,52 +19,69 @@ const COLORS: Color[] = ["W", "Y", "R", "O", "B", "G"];
 
 // Hidden capture canvas is always 300×300 px
 const CANVAS_SIZE = 300;
-const GRID_OFFSET = 45; // grid starts 45px from each edge
-const GRID_SIZE = 210; // 3×3 grid spans 210px (70% of 300)
+const GRID_OFFSET = 45;
+const GRID_SIZE = 210;
 
 const CAPTURE_STEPS: {
   face: FaceKey;
   label: string;
-  instruction: string;
+  holdText: string;    // how to hold the cube
+  topColor: Color;     // color that should appear at the top edge of the grid
   ringClass: string;
 }[] = [
   {
     face: "U",
     label: "White face (top)",
-    instruction: "Point the camera at the WHITE face",
+    holdText: "Lay the cube flat and look straight down at the WHITE face",
+    topColor: "B",   // Blue face is at the far/top edge
     ringClass: "ring-gray-300",
   },
   {
     face: "F",
     label: "Green face (front)",
-    instruction: "Point the camera at the GREEN face",
+    holdText: "Hold cube upright, GREEN face toward camera, WHITE on top",
+    topColor: "W",
     ringClass: "ring-green-400",
   },
   {
     face: "R",
     label: "Red face (right)",
-    instruction: "Point the camera at the RED face",
+    holdText: "Hold cube upright, RED face toward camera, WHITE on top",
+    topColor: "W",
     ringClass: "ring-red-400",
   },
   {
     face: "D",
     label: "Yellow face (bottom)",
-    instruction: "Point the camera at the YELLOW face",
+    holdText: "Flip cube over and look straight down at the YELLOW face",
+    topColor: "G",   // Green face is at the far/top edge when flipped
     ringClass: "ring-yellow-400",
   },
   {
     face: "L",
     label: "Orange face (left)",
-    instruction: "Point the camera at the ORANGE face",
+    holdText: "Hold cube upright, ORANGE face toward camera, WHITE on top",
+    topColor: "W",
     ringClass: "ring-orange-400",
   },
   {
     face: "B",
     label: "Blue face (back)",
-    instruction: "Point the camera at the BLUE face",
+    holdText: "Hold cube upright, BLUE face toward camera, WHITE on top",
+    topColor: "W",
     ringClass: "ring-blue-400",
   },
 ];
+
+// 90° clockwise:  new[i] = old[CW[i]]
+// 90° counter-CW: new[i] = old[CCW[i]]
+const ROT_CW  = [6, 3, 0, 7, 4, 1, 8, 5, 2];
+const ROT_CCW = [2, 5, 8, 1, 4, 7, 0, 3, 6];
+
+function rotateFace(colors: Color[], dir: "cw" | "ccw"): Color[] {
+  const map = dir === "cw" ? ROT_CW : ROT_CCW;
+  return map.map((src) => colors[src]);
+}
 
 function colorBg(c: Color): string {
   const map: Record<Color, string> = {
@@ -77,6 +94,16 @@ function colorBg(c: Color): string {
   };
   return map[c];
 }
+
+// Hex fills for SVG (Tailwind classes don't work inside SVG)
+const COLOR_HEX: Record<Color, string> = {
+  W: "#e5e7eb",
+  Y: "#facc15",
+  R: "#ef4444",
+  O: "#f97316",
+  B: "#3b82f6",
+  G: "#22c55e",
+};
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -96,9 +123,7 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
   const [phase, setPhase] = useState<"capture" | "confirm">("capture");
   const [detectedColors, setDetectedColors] = useState<Color[]>([]);
   const [selectedSquare, setSelectedSquare] = useState<number | null>(null);
-  const [capturedFaces, setCapturedFaces] = useState<
-    Partial<Record<FaceKey, Face>>
-  >({});
+  const [capturedFaces, setCapturedFaces] = useState<Partial<Record<FaceKey, Face>>>({});
 
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [solveError, setSolveError] = useState<string | null>(null);
@@ -126,6 +151,8 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
         streamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+          // Explicit play() is needed when the component remounts on some browsers
+          videoRef.current.play().catch(() => {});
         }
       } catch {
         if (mounted) {
@@ -141,6 +168,7 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
     return () => {
       mounted = false;
       streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
     };
   }, []);
 
@@ -167,7 +195,6 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
     ctx.drawImage(video, dx, dy, dw, dh);
 
     const colors = extractFaceColors(ctx, GRID_OFFSET, GRID_OFFSET, GRID_SIZE);
-
     // Always force center to match the known face center color
     colors[4] = FACE_CENTERS[CAPTURE_STEPS[stepIndex].face];
 
@@ -190,6 +217,17 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
       const next = [...prev];
       next[selectedSquare] = color;
       return next as Color[];
+    });
+    setSelectedSquare(null);
+  }
+
+  function handleRotate(dir: "cw" | "ccw") {
+    const face = CAPTURE_STEPS[stepIndex].face;
+    setDetectedColors((prev) => {
+      const rotated = rotateFace(prev, dir);
+      // Re-enforce center color after rotation (it maps to itself, but be explicit)
+      rotated[4] = FACE_CENTERS[face];
+      return rotated;
     });
     setSelectedSquare(null);
   }
@@ -298,7 +336,7 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
 
       {phase === "capture" ? (
         <>
-          {/* Camera view with grid overlay */}
+          {/* Camera view with grid overlay + edge color hints */}
           <div
             className={`relative w-full aspect-square max-w-sm rounded-2xl overflow-hidden bg-black shadow-xl ring-4 ${step.ringClass}`}
           >
@@ -309,18 +347,16 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
               muted
               className="absolute inset-0 w-full h-full object-cover"
             />
-            {/* SVG overlay: dim outside the grid, show grid lines */}
+            {/* SVG overlay: dim, grid lines, edge color indicators */}
             <svg
               className="absolute inset-0 w-full h-full pointer-events-none"
               viewBox={`0 0 ${CANVAS_SIZE} ${CANVAS_SIZE}`}
               preserveAspectRatio="none"
             >
-              {/* Dim area outside the guide square */}
+              {/* Dim outside grid */}
               <path
                 fillRule="evenodd"
-                d={`M0 0 H${CANVAS_SIZE} V${CANVAS_SIZE} H0 Z M${GRID_OFFSET} ${GRID_OFFSET} H${
-                  GRID_OFFSET + GRID_SIZE
-                } V${GRID_OFFSET + GRID_SIZE} H${GRID_OFFSET} Z`}
+                d={`M0 0 H${CANVAS_SIZE} V${CANVAS_SIZE} H0 Z M${GRID_OFFSET} ${GRID_OFFSET} H${GRID_OFFSET + GRID_SIZE} V${GRID_OFFSET + GRID_SIZE} H${GRID_OFFSET} Z`}
                 fill="rgba(0,0,0,0.45)"
               />
               {/* Vertical grid lines */}
@@ -349,7 +385,7 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
                   opacity="0.85"
                 />
               ))}
-              {/* Guide square border */}
+              {/* Guide border */}
               <rect
                 x={GRID_OFFSET}
                 y={GRID_OFFSET}
@@ -360,17 +396,42 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
                 strokeWidth="3"
                 rx="4"
               />
+              {/* TOP color indicator — shows which color should be at the top edge */}
+              <rect
+                x={CANVAS_SIZE / 2 - 30}
+                y={8}
+                width={60}
+                height={20}
+                rx={5}
+                fill={COLOR_HEX[step.topColor]}
+                stroke="white"
+                strokeWidth="1.5"
+              />
+              <text
+                x={CANVAS_SIZE / 2}
+                y={22}
+                textAnchor="middle"
+                fontSize="10"
+                fontWeight="bold"
+                fill={["W"].includes(step.topColor) ? "#374151" : "white"}
+              >
+                TOP
+              </text>
             </svg>
           </div>
 
-          {/* Instruction */}
-          <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl px-4 py-3 text-center w-full">
-            <p className="font-black text-indigo-900 text-base">
-              {step.instruction}
+          {/* Orientation instruction */}
+          <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl px-4 py-3 w-full">
+            <p className="font-black text-indigo-900 text-sm text-center">
+              {step.holdText}
             </p>
-            <p className="text-sm text-indigo-600 mt-1">
-              Align one face to fill the grid, then tap Capture
-            </p>
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <span className="text-xs font-semibold text-indigo-600">Top of grid →</span>
+              <div className={`w-5 h-5 rounded ${colorBg(step.topColor)} border-2 border-gray-400 flex-shrink-0`} />
+              <span className="text-xs font-bold text-indigo-800">
+                {COLOR_META[step.topColor].label} face
+              </span>
+            </div>
           </div>
 
           {/* Capture button */}
@@ -398,7 +459,7 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
             <p className="text-sm text-indigo-600 mt-1">
               {selectedSquare !== null
                 ? "Pick the correct color below ↓"
-                : "Tap any square to fix its color"}
+                : "Rotate or tap a square to fix its color"}
             </p>
           </div>
 
@@ -425,6 +486,24 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
               );
             })}
           </div>
+
+          {/* Rotate buttons */}
+          {selectedSquare === null && (
+            <div className="flex gap-3 w-60 mx-auto">
+              <button
+                onClick={() => handleRotate("ccw")}
+                className="flex-1 py-2 rounded-xl border-2 border-gray-300 bg-white text-gray-700 font-black text-base active:scale-95 transition-transform shadow"
+              >
+                ↺ Rotate left
+              </button>
+              <button
+                onClick={() => handleRotate("cw")}
+                className="flex-1 py-2 rounded-xl border-2 border-gray-300 bg-white text-gray-700 font-black text-base active:scale-95 transition-transform shadow"
+              >
+                ↻ Rotate right
+              </button>
+            </div>
+          )}
 
           {/* Color picker (shown when a square is selected) */}
           {selectedSquare !== null && (
@@ -485,7 +564,7 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
         </>
       )}
 
-      {/* Hidden canvas used for color sampling */}
+      {/* Hidden canvas for color sampling */}
       <canvas
         ref={captureCanvasRef}
         width={CANVAS_SIZE}
