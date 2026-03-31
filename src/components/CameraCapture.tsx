@@ -25,59 +25,65 @@ const GRID_SIZE = 210;
 const CAPTURE_STEPS: {
   face: FaceKey;
   label: string;
-  holdText: string;
+  holdText: string;         // how to hold the cube
+  transition: string;       // how to get here from the previous step
   topColor: Color;
   ringClass: string;
-  // Colors of the 4 adjacent faces as seen on screen when this face fills the grid
   neighbors: { top: Color; right: Color; bottom: Color; left: Color };
 }[] = [
   {
     face: "U",
-    label: "White face (top)",
-    holdText: "Lay the cube flat, look straight down at the WHITE face",
+    label: "White face",
+    holdText: "Lay the cube flat on a table and look straight down at the WHITE face",
+    transition: "",           // first step, no transition needed
     topColor: "B",
     ringClass: "ring-gray-300",
     neighbors: { top: "B", right: "R", bottom: "G", left: "O" },
   },
   {
     face: "F",
-    label: "Green face (front)",
-    holdText: "Hold upright, GREEN face toward camera, WHITE on top",
+    label: "Green face",
+    holdText: "Hold the cube upright with GREEN facing the camera and WHITE on top",
+    transition: "Tilt the cube toward you — the GREEN face rises up, the BLUE face drops to the bottom",
     topColor: "W",
     ringClass: "ring-green-400",
     neighbors: { top: "W", right: "R", bottom: "Y", left: "O" },
   },
   {
     face: "R",
-    label: "Red face (right)",
-    holdText: "Hold upright, RED face toward camera, WHITE on top",
+    label: "Red face",
+    holdText: "Keep WHITE on top, rotate so the RED face is now toward the camera",
+    transition: "Keep it upright and rotate 90° to the left — RED now faces the camera",
     topColor: "W",
     ringClass: "ring-red-400",
     neighbors: { top: "W", right: "B", bottom: "Y", left: "G" },
   },
   {
-    face: "D",
-    label: "Yellow face (bottom)",
-    holdText: "Flip cube over, look straight down at the YELLOW face",
-    topColor: "G",
-    ringClass: "ring-yellow-400",
-    neighbors: { top: "G", right: "R", bottom: "B", left: "O" },
+    face: "B",
+    label: "Blue face",
+    holdText: "Keep WHITE on top, rotate so the BLUE face is now toward the camera",
+    transition: "Keep it upright and rotate 90° to the left again — BLUE now faces the camera",
+    topColor: "W",
+    ringClass: "ring-blue-400",
+    neighbors: { top: "W", right: "O", bottom: "Y", left: "R" },
   },
   {
     face: "L",
-    label: "Orange face (left)",
-    holdText: "Hold upright, ORANGE face toward camera, WHITE on top",
+    label: "Orange face",
+    holdText: "Keep WHITE on top, rotate so the ORANGE face is now toward the camera",
+    transition: "Keep it upright and rotate 90° to the left again — ORANGE now faces the camera",
     topColor: "W",
     ringClass: "ring-orange-400",
     neighbors: { top: "W", right: "G", bottom: "Y", left: "B" },
   },
   {
-    face: "B",
-    label: "Blue face (back)",
-    holdText: "Hold upright, BLUE face toward camera, WHITE on top",
-    topColor: "W",
-    ringClass: "ring-blue-400",
-    neighbors: { top: "W", right: "O", bottom: "Y", left: "R" },
+    face: "D",
+    label: "Yellow face",
+    holdText: "Tilt the cube forward so YELLOW faces up, then look straight down at it",
+    transition: "Tilt the cube forward/away from you — WHITE goes to the back, YELLOW comes to the top",
+    topColor: "G",
+    ringClass: "ring-yellow-400",
+    neighbors: { top: "G", right: "R", bottom: "B", left: "O" },
   },
 ];
 
@@ -482,7 +488,15 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
             </svg>
           </div>
 
-          {/* Orientation instruction + diagram */}
+          {/* Transition instruction — how to get here from the previous step */}
+          {step.transition && (
+            <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl px-4 py-3 w-full text-center">
+              <p className="text-xs font-black text-amber-700 uppercase tracking-wide mb-0.5">From previous step</p>
+              <p className="font-bold text-amber-900 text-sm">{step.transition}</p>
+            </div>
+          )}
+
+          {/* Orientation diagram */}
           <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl px-4 py-3 w-full">
             <p className="font-black text-indigo-900 text-sm text-center mb-3">
               {step.holdText}
