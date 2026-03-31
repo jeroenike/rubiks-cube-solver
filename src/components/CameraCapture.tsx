@@ -25,51 +25,59 @@ const GRID_SIZE = 210;
 const CAPTURE_STEPS: {
   face: FaceKey;
   label: string;
-  holdText: string;    // how to hold the cube
-  topColor: Color;     // color that should appear at the top edge of the grid
+  holdText: string;
+  topColor: Color;
   ringClass: string;
+  // Colors of the 4 adjacent faces as seen on screen when this face fills the grid
+  neighbors: { top: Color; right: Color; bottom: Color; left: Color };
 }[] = [
   {
     face: "U",
     label: "White face (top)",
-    holdText: "Lay the cube flat and look straight down at the WHITE face",
-    topColor: "B",   // Blue face is at the far/top edge
+    holdText: "Lay the cube flat, look straight down at the WHITE face",
+    topColor: "B",
     ringClass: "ring-gray-300",
+    neighbors: { top: "B", right: "R", bottom: "G", left: "O" },
   },
   {
     face: "F",
     label: "Green face (front)",
-    holdText: "Hold cube upright, GREEN face toward camera, WHITE on top",
+    holdText: "Hold upright, GREEN face toward camera, WHITE on top",
     topColor: "W",
     ringClass: "ring-green-400",
+    neighbors: { top: "W", right: "R", bottom: "Y", left: "O" },
   },
   {
     face: "R",
     label: "Red face (right)",
-    holdText: "Hold cube upright, RED face toward camera, WHITE on top",
+    holdText: "Hold upright, RED face toward camera, WHITE on top",
     topColor: "W",
     ringClass: "ring-red-400",
+    neighbors: { top: "W", right: "B", bottom: "Y", left: "G" },
   },
   {
     face: "D",
     label: "Yellow face (bottom)",
-    holdText: "Flip cube over and look straight down at the YELLOW face",
-    topColor: "G",   // Green face is at the far/top edge when flipped
+    holdText: "Flip cube over, look straight down at the YELLOW face",
+    topColor: "G",
     ringClass: "ring-yellow-400",
+    neighbors: { top: "G", right: "R", bottom: "B", left: "O" },
   },
   {
     face: "L",
     label: "Orange face (left)",
-    holdText: "Hold cube upright, ORANGE face toward camera, WHITE on top",
+    holdText: "Hold upright, ORANGE face toward camera, WHITE on top",
     topColor: "W",
     ringClass: "ring-orange-400",
+    neighbors: { top: "W", right: "G", bottom: "Y", left: "B" },
   },
   {
     face: "B",
     label: "Blue face (back)",
-    holdText: "Hold cube upright, BLUE face toward camera, WHITE on top",
+    holdText: "Hold upright, BLUE face toward camera, WHITE on top",
     topColor: "W",
     ringClass: "ring-blue-400",
+    neighbors: { top: "W", right: "O", bottom: "Y", left: "R" },
   },
 ];
 
@@ -104,6 +112,17 @@ const COLOR_HEX: Record<Color, string> = {
   B: "#3b82f6",
   G: "#22c55e",
 };
+
+// Small colored square used in the orientation cross diagram
+function DiagramCell({ color, label, highlight = false }: { color: Color; label: string; highlight?: boolean }) {
+  return (
+    <div
+      className={`rounded flex items-center justify-center text-[9px] font-black leading-none ${colorBg(color)} ${COLOR_META[color].text} ${highlight ? "ring-2 ring-indigo-500 ring-offset-1" : "opacity-90"}`}
+    >
+      {label === "scan" ? "📷" : ""}
+    </div>
+  );
+}
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -463,17 +482,45 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
             </svg>
           </div>
 
-          {/* Orientation instruction */}
+          {/* Orientation instruction + diagram */}
           <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl px-4 py-3 w-full">
-            <p className="font-black text-indigo-900 text-sm text-center">
+            <p className="font-black text-indigo-900 text-sm text-center mb-3">
               {step.holdText}
             </p>
-            <div className="flex items-center justify-center gap-2 mt-2">
-              <span className="text-xs font-semibold text-indigo-600">Top of grid →</span>
-              <div className={`w-5 h-5 rounded ${colorBg(step.topColor)} border-2 border-gray-400 flex-shrink-0`} />
-              <span className="text-xs font-bold text-indigo-800">
-                {COLOR_META[step.topColor].label} face
-              </span>
+            {/* Cross diagram: center = face being scanned, 4 sides = adjacent faces */}
+            <div className="flex items-center justify-center gap-4">
+              <div className="grid gap-0.5" style={{ gridTemplateColumns: "repeat(3, 2.5rem)", gridTemplateRows: "repeat(3, 2.5rem)" }}>
+                {/* Row 0 */}
+                <div />
+                <DiagramCell color={step.neighbors.top} label="top" />
+                <div />
+                {/* Row 1 */}
+                <DiagramCell color={step.neighbors.left} label="left" />
+                <DiagramCell color={FACE_CENTERS[step.face]} label="scan" highlight />
+                <DiagramCell color={step.neighbors.right} label="right" />
+                {/* Row 2 */}
+                <div />
+                <DiagramCell color={step.neighbors.bottom} label="btm" />
+                <div />
+              </div>
+              <div className="text-xs text-indigo-700 font-semibold space-y-1 leading-tight">
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-3 rounded-sm border border-gray-400 flex-shrink-0" style={{ background: COLOR_HEX[step.neighbors.top] }} />
+                  <span>Top: <strong>{COLOR_META[step.neighbors.top].label}</strong></span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-3 rounded-sm border border-gray-400 flex-shrink-0" style={{ background: COLOR_HEX[step.neighbors.right] }} />
+                  <span>Right: <strong>{COLOR_META[step.neighbors.right].label}</strong></span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-3 rounded-sm border border-gray-400 flex-shrink-0" style={{ background: COLOR_HEX[step.neighbors.bottom] }} />
+                  <span>Bottom: <strong>{COLOR_META[step.neighbors.bottom].label}</strong></span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-3 rounded-sm border border-gray-400 flex-shrink-0" style={{ background: COLOR_HEX[step.neighbors.left] }} />
+                  <span>Left: <strong>{COLOR_META[step.neighbors.left].label}</strong></span>
+                </div>
+              </div>
             </div>
           </div>
 
