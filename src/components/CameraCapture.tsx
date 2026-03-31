@@ -234,11 +234,35 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
     const face = CAPTURE_STEPS[stepIndex].face;
     setDetectedColors((prev) => {
       const rotated = rotateFace(prev, dir);
-      // Re-enforce center color after rotation (it maps to itself, but be explicit)
       rotated[4] = FACE_CENTERS[face];
       return rotated;
     });
     setSelectedSquare(null);
+  }
+
+  // Navigate to a specific step index. Saves current edits if in confirm phase.
+  function goToStep(targetIndex: number) {
+    const currentFace = CAPTURE_STEPS[stepIndex].face;
+    let updatedFaces = capturedFaces;
+
+    // Persist any edits made to the current face before navigating away
+    if (phase === "confirm" && detectedColors.length === 9) {
+      updatedFaces = { ...capturedFaces, [currentFace]: detectedColors as Face };
+      setCapturedFaces(updatedFaces);
+    }
+
+    const targetFace = CAPTURE_STEPS[targetIndex].face;
+    const saved = updatedFaces[targetFace];
+    if (saved) {
+      setDetectedColors([...saved]);
+      setPhase("confirm");
+    } else {
+      setDetectedColors([]);
+      setPhase("capture");
+    }
+    setStepIndex(targetIndex);
+    setSelectedSquare(null);
+    setSolveError(null);
   }
 
   async function handleConfirm() {
@@ -248,9 +272,12 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
 
     if (stepIndex < CAPTURE_STEPS.length - 1) {
       setCapturedFaces(newFaces);
-      setStepIndex((i) => i + 1);
-      setPhase("capture");
-      setDetectedColors([]);
+      const nextIndex = stepIndex + 1;
+      const nextFace = CAPTURE_STEPS[nextIndex].face;
+      const savedNext = newFaces[nextFace];
+      setDetectedColors(savedNext ? [...savedNext] : []);
+      setPhase(savedNext ? "confirm" : "capture");
+      setStepIndex(nextIndex);
       setSelectedSquare(null);
     } else {
       // All 6 faces captured — validate and solve
@@ -327,20 +354,27 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
         </p>
       </div>
 
-      {/* Progress dots */}
+      {/* Progress dots — tappable for already-visited faces */}
       <div className="flex gap-2">
-        {CAPTURE_STEPS.map((s, i) => (
-          <div
-            key={s.face}
-            className={`w-3 h-3 rounded-full transition-colors ${
-              i < stepIndex
-                ? "bg-green-500"
-                : i === stepIndex
-                ? "bg-indigo-600"
-                : "bg-gray-200"
-            }`}
-          />
-        ))}
+        {CAPTURE_STEPS.map((s, i) => {
+          const isDone = i < stepIndex || !!capturedFaces[s.face];
+          const isCurrent = i === stepIndex;
+          return (
+            <button
+              key={s.face}
+              onClick={() => { if (isDone || isCurrent) goToStep(i); }}
+              disabled={!isDone && !isCurrent}
+              title={s.label}
+              className={`w-4 h-4 rounded-full transition-all ${
+                isCurrent
+                  ? "bg-indigo-600 scale-125"
+                  : isDone
+                  ? "bg-green-500 cursor-pointer hover:scale-110"
+                  : "bg-gray-200 cursor-default"
+              }`}
+            />
+          );
+        })}
       </div>
 
       {phase === "capture" ? (
@@ -560,16 +594,26 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
             )}
           </button>
 
-          <button
-            onClick={() => {
-              setPhase("capture");
-              setSelectedSquare(null);
-              setSolveError(null);
-            }}
-            className="text-sm text-gray-500 underline"
-          >
-            ← Retake this face
-          </button>
+          <div className="flex gap-4 justify-center">
+            {stepIndex > 0 && (
+              <button
+                onClick={() => goToStep(stepIndex - 1)}
+                className="text-sm text-indigo-500 underline font-semibold"
+              >
+                ← Previous face
+              </button>
+            )}
+            <button
+              onClick={() => {
+                setPhase("capture");
+                setSelectedSquare(null);
+                setSolveError(null);
+              }}
+              className="text-sm text-gray-500 underline"
+            >
+              ↺ Retake photo
+            </button>
+          </div>
         </>
       )}
 
