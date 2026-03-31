@@ -63,3 +63,45 @@ button {
 .confetti-piece {
   animation: confettiBounce 1.5s ease-in-out infinite;
 }
+
+/* ── Move arrow animations ───────────────────────────────────────────────── */
+
+/* Circular sweep for CW / CCW (F, U, R, L faces) */
+@keyframes spin-cw {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes spin-ccw {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-360deg); }
+}
+
+/* Straight arrow bounce — one direction per axis */
+@keyframes bounce-right {
+  0%, 100% { transform: translateX(0);   opacity: 1; }
+  60%       { transform: translateX(7px); opacity: 0.7; }
+}
+@keyframes bounce-left {
+  0%, 100% { transform: translateX(0);    opacity: 1; }
+  60%       { transform: translateX(-7px); opacity: 0.7; }
+}
+@keyframes bounce-up {
+  0%, 100% { transform: translateY(0);    opacity: 1; }
+  60%       { transform: translateY(-7px); opacity: 0.7; }
+}
+@keyframes bounce-down {
+  0%, 100% { transform: translateY(0);   opacity: 1; }
+  60%       { transform: translateY(7px); opacity: 0.7; }
+}
+
+/* Pulse for ×2 moves */
+@keyframes pulse-scale {
+  0%, 100% { transform: scale(1);    opacity: 1; }
+  50%       { transform: scale(1.15); opacity: 0.75; }
+}
+
+/* Active face glow */
+@keyframes face-glow {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.65; }
+}

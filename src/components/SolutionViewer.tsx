@@ -5,121 +5,115 @@ import { getMoveInfo } from "@/lib/moveDescriptions";
 import MovesGuide from "@/components/MovesGuide";
 
 // ─── Cube SVG visual ──────────────────────────────────────────────────────────
-// Shows a simplified isometric cube; highlights the active face.
 function CubeVisual({ face, arrowDir }: { face: string; arrowDir: "cw" | "ccw" | "two" }) {
-  const faceColors: Record<string, { top: string; right: string; front: string }> = {
-    top:    { top: "#f59e0b",   right: "#e5e7eb", front: "#e5e7eb" },
-    right:  { top: "#e5e7eb",   right: "#ef4444", front: "#e5e7eb" },
-    front:  { top: "#e5e7eb",   right: "#e5e7eb", front: "#22c55e" },
-    bottom: { top: "#e5e7eb",   right: "#e5e7eb", front: "#e5e7eb" },
-    left:   { top: "#e5e7eb",   right: "#e5e7eb", front: "#e5e7eb" },
-    back:   { top: "#e5e7eb",   right: "#e5e7eb", front: "#e5e7eb" },
-  };
-
-  const faceLabel: Record<string, string> = {
-    top: "TOP", right: "RIGHT", front: "FRONT",
-    bottom: "BOTTOM", left: "LEFT", back: "BACK",
-  };
-
-  const faceLabelColor: Record<string, string> = {
-    top: "#92400e", right: "#991b1b", front: "#14532d",
-    bottom: "#713f12", left: "#7c2d12", back: "#1e3a8a",
-  };
-
-  const c = faceColors[face] ?? faceColors.front;
-
-  // Isometric cube points
-  const topFace = "60,10 110,40 60,70 10,40";
+  // Isometric face polygons
+  const topFace   = "60,10 110,40 60,70 10,40";
   const rightFace = "110,40 110,100 60,130 60,70";
-  const leftFace = "10,40 60,70 60,130 10,100";
+  const leftFace  = "10,40 60,70 60,130 10,100";
 
-  // Arrow for each direction
-  const arrowPath =
-    arrowDir === "cw"
-      ? "M 60 75 A 30 30 0 1 1 59 75"   // almost-full clockwise circle
-      : arrowDir === "ccw"
-      ? "M 60 75 A 30 30 0 1 0 61 75"   // counter
-      : "M 40 75 L 80 75 M 70 65 L 80 75 L 70 85"; // double arrow
-
-  const arrowheadCw =  "M 60 45 L 70 40 L 65 52 Z";
-  const arrowheadCcw = "M 60 45 L 50 40 L 55 52 Z";
-
-  // Straight arrows for L, B, D (described from the front perspective)
-  // L cw  = front-left column goes DOWN  → arrow pointing down on left face
-  // L ccw = front-left column goes UP    → arrow pointing up on left face
-  // B cw  = top edge goes RIGHT          → arrow pointing right at top
-  // B ccw = top edge goes LEFT           → arrow pointing left at top
-  // D cw  = front-bottom row goes LEFT   → arrow pointing left on bottom
-  // D ccw = front-bottom row goes RIGHT  → arrow pointing right on bottom
-  const straightArrow: Record<string, { x1:number;y1:number;x2:number;y2:number;hx:number;hy:number } | null> = {
-    left_cw:     { x1:18, y1:52, x2:18, y2:98, hx:18, hy:98 },  // down
-    left_ccw:    { x1:18, y1:98, x2:18, y2:52, hx:18, hy:52 },  // up
-    left_two:    null,
-    back_cw:     { x1:20, y1:25, x2:90, y2:25, hx:90, hy:25 },  // right
-    back_ccw:    { x1:90, y1:25, x2:20, y2:25, hx:20, hy:25 },  // left
-    back_two:    null,
-    bottom_cw:   { x1:85, y1:115, x2:35, y2:115, hx:35, hy:115 }, // left
-    bottom_ccw:  { x1:35, y1:115, x2:85, y2:115, hx:85, hy:115 }, // right
-    bottom_two:  null,
+  // Face fill colors (active face is vivid, others are muted grey)
+  const GREY = "#d1d5db";
+  const fills = {
+    top:    face === "top"    ? "#fbbf24" : GREY,
+    right:  face === "right"  ? "#ef4444" : GREY,
+    left:   face === "left"   ? "#f97316" : face === "front" ? "#22c55e" : GREY,
   };
 
-  const needsStraightArrow = face === "left" || face === "back" || face === "bottom";
-  const straightKey = needsStraightArrow ? `${face}_${arrowDir}` : "";
-  const sa = straightArrow[straightKey] ?? null;
+  // Badge colors
+  const badgeBg:    Record<string, string> = { top:"#fef3c7", right:"#fee2e2", front:"#dcfce7", left:"#ffedd5", bottom:"#fef9c3", back:"#dbeafe" };
+  const badgeColor: Record<string, string> = { top:"#92400e", right:"#991b1b", front:"#14532d", left:"#7c2d12",  bottom:"#713f12", back:"#1e3a8a" };
+  const faceLabel:  Record<string, string> = { top:"TOP", right:"RIGHT", front:"FRONT", left:"LEFT", bottom:"BOTTOM", back:"BACK" };
+
+  // ── Circular sweep arrow (F / U / R / L) ────────────────────────────────
+  // The arc is drawn centred at (60,75) with r=30; rotating the whole group
+  // makes the arrowhead orbit continuously in the correct direction.
+  const arcCw  = "M 60 45 A 30 30 0 1 1 59.9 45";   // nearly full CW arc
+  const arcCcw = "M 60 45 A 30 30 0 1 0 60.1 45";   // nearly full CCW arc
+  const useCircularArrow = face === "front" || face === "top" || face === "right" || face === "left";
+
+  // spin style — transform-origin at the arc centre (60,75) within the viewBox
+  const spinStyle = (dir: "cw" | "ccw"): React.CSSProperties => ({
+    transformBox: "view-box",
+    transformOrigin: "60px 75px",
+    animation: `${dir === "cw" ? "spin-cw" : "spin-ccw"} 2s linear infinite`,
+  });
+
+  const pulseStyle: React.CSSProperties = {
+    transformBox: "fill-box",
+    transformOrigin: "center",
+    animation: "pulse-scale 1.8s ease-in-out infinite",
+  };
+
+  // ── Straight bounce arrow (B / D straight moves) ─────────────────────────
+  // Each entry: [x1,y1,x2,y2, bounceAnimation, arrowhead polygon points]
+  type SA = { x1:number; y1:number; x2:number; y2:number; anim:string; head:string };
+  const straightMap: Record<string, SA> = {
+    back_cw:    { x1:15,y1:22, x2:105,y2:22, anim:"bounce-right", head:"95,14 107,22 95,30" },
+    back_ccw:   { x1:105,y1:22, x2:15,y2:22, anim:"bounce-left",  head:"25,14 13,22 25,30"  },
+    bottom_cw:  { x1:95,y1:120, x2:25,y2:120, anim:"bounce-left", head:"35,112 23,120 35,128" },
+    bottom_ccw: { x1:25,y1:120, x2:95,y2:120, anim:"bounce-right",head:"85,112 97,120 85,128" },
+  };
+  const saKey = `${face}_${arrowDir}`;
+  const sa: SA | null = straightMap[saKey] ?? null;
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <svg viewBox="0 0 120 140" className="w-36 h-36 sm:w-44 sm:h-44 drop-shadow-lg">
-        {/* Left face */}
-        <polygon points={leftFace}  fill={face === "left"  ? "#f97316" : face === "front" ? "#22c55e" : c.right} stroke="#374151" strokeWidth="2" />
-        {/* Right face */}
-        <polygon points={rightFace} fill={face === "right" ? "#ef4444" : c.right} stroke="#374151" strokeWidth="2" />
-        {/* Top face */}
-        <polygon points={topFace}   fill={face === "top"   ? "#fbbf24" : c.top}   stroke="#374151" strokeWidth="2" />
+      <svg viewBox="0 0 120 140" className="w-40 h-40 sm:w-48 sm:h-48 drop-shadow-lg">
 
-        {/* Circular arrow for front/top/right */}
-        {(face === "front" || face === "top" || face === "right") && (
-          <g opacity="0.9">
-            <path d={arrowPath} fill="none" stroke="#1e40af" strokeWidth="3" strokeLinecap="round" />
-            {arrowDir === "cw"  && <polygon points="55,44 70,38 68,52" fill="#1e40af" />}
-            {arrowDir === "ccw" && <polygon points="65,44 50,38 52,52" fill="#1e40af" />}
-            {arrowDir === "two" && (
-              <>
-                <line x1="35" y1="75" x2="85" y2="75" stroke="#1e40af" strokeWidth="3" />
-                <polygon points="80,68 90,75 80,82" fill="#1e40af" />
-                <polygon points="40,68 30,75 40,82" fill="#1e40af" />
-              </>
-            )}
+        {/* ── Cube faces ── */}
+        <polygon points={leftFace}  fill={fills.left}  stroke="#374151" strokeWidth="2"
+          style={face === "left" || face === "front" ? { animation:"face-glow 1.2s ease-in-out infinite" } : undefined} />
+        <polygon points={rightFace} fill={fills.right} stroke="#374151" strokeWidth="2"
+          style={face === "right"  ? { animation:"face-glow 1.2s ease-in-out infinite" } : undefined} />
+        <polygon points={topFace}   fill={fills.top}   stroke="#374151" strokeWidth="2"
+          style={face === "top"    ? { animation:"face-glow 1.2s ease-in-out infinite" } : undefined} />
+
+        {/* ── Back / bottom labels (not visible on the isometric cube) ── */}
+        {face === "back" && (
+          <text x="60" y="108" textAnchor="middle" fontSize="9" fill="#1e3a8a" fontWeight="bold">BACK FACE</text>
+        )}
+        {face === "bottom" && (
+          <text x="60" y="108" textAnchor="middle" fontSize="9" fill="#78350f" fontWeight="bold">BOTTOM FACE</text>
+        )}
+
+        {/* ── Circular sweep arrow (F / U / R / L) ── */}
+        {useCircularArrow && arrowDir !== "two" && (
+          <g style={spinStyle(arrowDir as "cw"|"ccw")} opacity="0.92">
+            <path d={arrowDir === "cw" ? arcCw : arcCcw}
+              fill="none" stroke="#1e40af" strokeWidth="3.5" strokeLinecap="round" />
+            {/* Static arrowhead at the top of the arc */}
+            <polygon points={arrowDir === "cw" ? "54,44 69,38 67,53" : "66,44 51,38 53,53"} fill="#1e40af" />
           </g>
         )}
 
-        {/* Straight arrow for left/back/bottom */}
-        {needsStraightArrow && sa && (
-          <g opacity="0.95">
-            <line x1={sa.x1} y1={sa.y1} x2={sa.x2} y2={sa.y2} stroke="#1e40af" strokeWidth="3" strokeLinecap="round" />
-            {/* Arrowhead */}
-            {sa.hx === sa.x2 && sa.hy > sa.y1 && <polygon points={`${sa.hx-6},${sa.hy-10} ${sa.hx+6},${sa.hy-10} ${sa.hx},${sa.hy+2}`} fill="#1e40af" />}
-            {sa.hx === sa.x2 && sa.hy < sa.y1 && <polygon points={`${sa.hx-6},${sa.hy+10} ${sa.hx+6},${sa.hy+10} ${sa.hx},${sa.hy-2}`} fill="#1e40af" />}
-            {sa.hy === sa.y2 && sa.hx > sa.x1 && <polygon points={`${sa.hx-10},${sa.hy-6} ${sa.hx-10},${sa.hy+6} ${sa.hx+2},${sa.hy}`} fill="#1e40af" />}
-            {sa.hy === sa.y2 && sa.hx < sa.x1 && <polygon points={`${sa.hx+10},${sa.hy-6} ${sa.hx+10},${sa.hy+6} ${sa.hx-2},${sa.hy}`} fill="#1e40af" />}
+        {/* ── ×2 pulse arrows ── */}
+        {arrowDir === "two" && useCircularArrow && (
+          <g style={pulseStyle} opacity="0.92">
+            <line x1="30" y1="75" x2="90" y2="75" stroke="#1e40af" strokeWidth="3" />
+            <polygon points="84,67 96,75 84,83" fill="#1e40af" />
+            <polygon points="36,67 24,75 36,83" fill="#1e40af" />
           </g>
         )}
-        {/* X2 double arrow for left/back/bottom */}
-        {needsStraightArrow && arrowDir === "two" && (
-          <g opacity="0.9">
-            <line x1="35" y1="75" x2="85" y2="75" stroke="#1e40af" strokeWidth="3" />
-            <polygon points="80,68 90,75 80,82" fill="#1e40af" />
-            <polygon points="40,68 30,75 40,82" fill="#1e40af" />
+
+        {/* ── Straight bounce arrow (B / D) ── */}
+        {sa && (
+          <g style={{ animation:`${sa.anim} 0.9s ease-in-out infinite` }} opacity="0.95">
+            <line x1={sa.x1} y1={sa.y1} x2={sa.x2} y2={sa.y2} stroke="#1e40af" strokeWidth="3.5" strokeLinecap="round" />
+            <polygon points={sa.head} fill="#1e40af" />
+          </g>
+        )}
+        {face === "back" && arrowDir === "two" && (
+          <g style={pulseStyle} opacity="0.92">
+            <line x1="15" y1="22" x2="105" y2="22" stroke="#1e40af" strokeWidth="3" />
+            <polygon points="95,14 107,22 95,30" fill="#1e40af" />
+            <polygon points="25,14 13,22 25,30" fill="#1e40af" />
           </g>
         )}
       </svg>
 
-      {/* Highlighted face badge */}
-      <div
-        className="px-4 py-1.5 rounded-full font-black text-sm shadow"
-        style={{ backgroundColor: face === "top" ? "#fef3c7" : face === "right" ? "#fee2e2" : face === "front" ? "#dcfce7" : face === "left" ? "#ffedd5" : face === "bottom" ? "#fef9c3" : "#dbeafe",
-                 color: faceLabelColor[face] ?? "#1f2937" }}
-      >
+      {/* Face badge */}
+      <div className="px-4 py-1.5 rounded-full font-black text-sm shadow"
+        style={{ backgroundColor: badgeBg[face] ?? "#f3f4f6", color: badgeColor[face] ?? "#1f2937" }}>
         ➡ {faceLabel[face] ?? face.toUpperCase()} face
       </div>
     </div>
