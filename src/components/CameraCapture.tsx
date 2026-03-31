@@ -154,10 +154,11 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
   const streamRef = useRef<MediaStream | null>(null);
 
   const [stepIndex, setStepIndex] = useState(0);
-  const [phase, setPhase] = useState<"capture" | "confirm">("capture");
+  const [phase, setPhase] = useState<"capture" | "confirm" | "review">("capture");
   const [detectedColors, setDetectedColors] = useState<Color[]>([]);
   const [selectedSquare, setSelectedSquare] = useState<number | null>(null);
   const [capturedFaces, setCapturedFaces] = useState<Partial<Record<FaceKey, Face>>>({});
+  const [reviewSelection, setReviewSelection] = useState<{ face: FaceKey; index: number } | null>(null);
 
   const [mirrored, setMirrored] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -299,6 +300,81 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
     setSolveError(null);
   }
 
+  function openReview() {
+    // Save current edits before entering review
+    const currentFace = CAPTURE_STEPS[stepIndex].face;
+    if (phase === "confirm" && detectedColors.length === 9) {
+      setCapturedFaces((prev) => ({ ...prev, [currentFace]: detectedColors as Face }));
+    }
+    setReviewSelection(null);
+    setSolveError(null);
+    setPhase("review");
+  }
+
+  function closeReview() {
+    // Return to confirm for current step (reload saved colors)
+    const currentFace = CAPTURE_STEPS[stepIndex].face;
+    const saved = capturedFaces[currentFace];
+    if (saved) {
+      setDetectedColors([...saved]);
+      setPhase("confirm");
+    } else {
+      setPhase("capture");
+    }
+    setReviewSelection(null);
+  }
+
+  function handleReviewSquareTap(face: FaceKey, index: number) {
+    if (index === 4) return; // center locked
+    setReviewSelection((prev) =>
+      prev && prev.face === face && prev.index === index ? null : { face, index }
+    );
+  }
+
+  function handleReviewColorPick(color: Color) {
+    if (!reviewSelection) return;
+    const { face, index } = reviewSelection;
+    setCapturedFaces((prev) => {
+      const faceArr = [...(prev[face] ?? [])] as Color[];
+      faceArr[index] = color;
+      return { ...prev, [face]: faceArr as Face };
+    });
+    setReviewSelection(null);
+  }
+
+  async function handleReviewSolve() {
+    const cube = capturedFaces as CubeState;
+    const err = validateCube(cube);
+    if (err) {
+      setSolveError(err + " — tap squares to fix the colors.");
+      return;
+    }
+    setLoading(true);
+    setSolveError(null);
+    try {
+      const res = await fetch("/api/solve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cubeString: toCubejsString(cube) }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSolveError(data.error ?? "Something went wrong. Try again!");
+        return;
+      }
+      if (data.alreadySolved) {
+        setSolveError("🎉 Your cube is already solved! Great job!");
+        return;
+      }
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      onSolve(data.moves as string[]);
+    } catch {
+      setSolveError("Could not connect. Check your internet and try again!");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleConfirm() {
     const step = CAPTURE_STEPS[stepIndex];
     const faceColors = detectedColors as Face;
@@ -375,6 +451,22 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
 
   const step = CAPTURE_STEPS[stepIndex];
   const isLastFace = stepIndex === CAPTURE_STEPS.length - 1;
+  const capturedCount = CAPTURE_STEPS.filter((s) => capturedFaces[s.face]).length;
+  const allCaptured = capturedCount === CAPTURE_STEPS.length;
+
+  // Face layout for the cube net overview (same as CubeInput)
+  const FACE_LAYOUT: { face: FaceKey; row: number; col: number }[] = [
+    { face: "U", row: 0, col: 1 },
+    { face: "L", row: 1, col: 0 },
+    { face: "F", row: 1, col: 1 },
+    { face: "R", row: 1, col: 2 },
+    { face: "B", row: 1, col: 3 },
+    { face: "D", row: 2, col: 1 },
+  ];
+  const FACE_BORDER: Record<FaceKey, string> = {
+    U: "border-gray-400", R: "border-red-400", F: "border-green-400",
+    D: "border-yellow-400", L: "border-orange-400", B: "border-blue-400",
+  };
 
   return (
     <div className="flex flex-col items-center gap-4 w-full max-w-md mx-auto px-3 page-enter">
@@ -384,15 +476,17 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
           🎲 Rubik&apos;s Cube Solver
         </h1>
         <p className="text-base font-semibold text-gray-500 mt-1">
-          📷 Scan face {stepIndex + 1} of 6 — {step.label}
+          {phase === "review"
+            ? `👁 Overview — ${capturedCount} of 6 faces scanned`
+            : `📷 Scan face ${stepIndex + 1} of 6 — ${step.label}`}
         </p>
       </div>
 
       {/* Progress dots — tappable for already-visited faces */}
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
         {CAPTURE_STEPS.map((s, i) => {
           const isDone = i < stepIndex || !!capturedFaces[s.face];
-          const isCurrent = i === stepIndex;
+          const isCurrent = i === stepIndex && phase !== "review";
           return (
             <button
               key={s.face}
@@ -409,6 +503,14 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
             />
           );
         })}
+        {capturedCount > 0 && phase !== "review" && (
+          <button
+            onClick={openReview}
+            className="ml-2 px-3 py-1 rounded-xl border-2 border-indigo-300 bg-indigo-50 text-indigo-700 font-black text-xs active:scale-95 transition-transform"
+          >
+            👁 Overview
+          </button>
+        )}
       </div>
 
       {phase === "capture" ? (
@@ -695,6 +797,121 @@ export default function CameraCapture({ onSolve, onCancel }: Props) {
               className="text-sm text-gray-500 underline"
             >
               ↺ Retake photo
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* ── Review phase: full cube net ─────────────────────────────────── */}
+      {phase === "review" && (
+        <>
+          <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl px-4 py-3 text-center w-full">
+            <p className="font-black text-indigo-900 text-base">
+              {reviewSelection ? "Pick the correct color ↓" : "Tap any square to correct its color"}
+            </p>
+          </div>
+
+          {/* Cube net */}
+          <div className="overflow-x-auto w-full pb-1">
+            <div
+              className="grid gap-1 mx-auto"
+              style={{ gridTemplateColumns: "repeat(4, auto)", gridTemplateRows: "repeat(3, auto)", width: "fit-content" }}
+            >
+              {FACE_LAYOUT.map(({ face, row, col }) => {
+                const faceColors = capturedFaces[face];
+                const center = FACE_CENTERS[face];
+                return (
+                  <div
+                    key={face}
+                    className={`border-2 rounded-xl p-1 ${FACE_BORDER[face]}`}
+                    style={{ gridRow: row + 1, gridColumn: col + 1 }}
+                  >
+                    <p className="text-center text-xs font-black text-gray-500 mb-1 leading-none">
+                      {COLOR_META[center].label}
+                    </p>
+                    {faceColors ? (
+                      <div className="grid grid-cols-3 gap-0.5">
+                        {faceColors.map((color, i) => {
+                          const isCenter = i === 4;
+                          const isSelected = reviewSelection?.face === face && reviewSelection?.index === i;
+                          return (
+                            <button
+                              key={i}
+                              onClick={() => handleReviewSquareTap(face, i)}
+                              disabled={isCenter}
+                              className={`
+                                w-8 h-8 sm:w-9 sm:h-9 rounded-md border-2 shadow-inner transition-all
+                                ${colorBg(isCenter ? center : color)}
+                                ${isCenter ? "border-gray-600 cursor-default opacity-90" : "border-gray-300 cursor-pointer"}
+                                ${isSelected ? "border-indigo-600 scale-110 ring-2 ring-indigo-400" : ""}
+                              `}
+                            />
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      // Face not yet scanned — show placeholder grid
+                      <div className="grid grid-cols-3 gap-0.5">
+                        {Array.from({ length: 9 }).map((_, i) => (
+                          <button
+                            key={i}
+                            onClick={() => { const si = CAPTURE_STEPS.findIndex(s => s.face === face); if (si !== -1) goToStep(si); }}
+                            className="w-8 h-8 sm:w-9 sm:h-9 rounded-md border-2 border-dashed border-gray-300 bg-gray-100 flex items-center justify-center text-gray-400 text-xs"
+                          >
+                            {i === 4 ? <span className={`w-4 h-4 rounded-sm ${colorBg(center)}`} /> : ""}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Color picker when a square is selected */}
+          {reviewSelection && (
+            <div className="flex gap-3 flex-wrap justify-center">
+              {COLORS.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => handleReviewColorPick(c)}
+                  className={`w-12 h-12 rounded-xl border-4 font-black text-xs shadow active:scale-90 transition-transform ${colorBg(c)} ${COLOR_META[c].text} ${COLOR_META[c].border}`}
+                >
+                  {COLOR_META[c].label.charAt(0)}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Solve error */}
+          {solveError && (
+            <div className="bg-red-50 border-2 border-red-300 rounded-2xl px-4 py-3 text-red-700 font-bold text-center w-full text-sm">
+              ⚠️ {solveError}
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div className="flex flex-col gap-3 w-full max-w-sm">
+            {allCaptured && (
+              <button
+                onClick={handleReviewSolve}
+                disabled={loading || !!reviewSelection}
+                className={`w-full py-5 rounded-2xl font-black text-2xl text-white shadow-lg active:scale-95 transition-all ${loading || reviewSelection ? "bg-green-300 cursor-not-allowed" : "bg-green-600 hover:bg-green-500"}`}
+              >
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="inline-block w-5 h-5 border-4 border-white border-t-transparent rounded-full animate-spin" />
+                    Thinking…
+                  </span>
+                ) : "🧩 Solve it!"}
+              </button>
+            )}
+            <button
+              onClick={closeReview}
+              className="w-full py-3 rounded-2xl border-2 border-indigo-300 bg-white text-indigo-700 font-black text-lg active:scale-95 transition-transform"
+            >
+              ← Back to scanning
             </button>
           </div>
         </>
