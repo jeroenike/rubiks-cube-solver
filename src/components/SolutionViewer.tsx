@@ -44,39 +44,44 @@ function CubeVisual({ face, arrowDir }: { face: string; arrowDir: "cw" | "ccw" |
   const arrowheadCw =  "M 60 45 L 70 40 L 65 52 Z";
   const arrowheadCcw = "M 60 45 L 50 40 L 55 52 Z";
 
-  // For bottom/left/back, show a note
-  const showNote = face === "bottom" || face === "left" || face === "back";
-  const noteText: Record<string, string> = {
-    bottom: "↓ Look at the bottom",
-    left:   "← Look at the left side",
-    back:   "↩ Look at the back",
+  // Straight arrows for L, B, D (described from the front perspective)
+  // L cw  = front-left column goes DOWN  → arrow pointing down on left face
+  // L ccw = front-left column goes UP    → arrow pointing up on left face
+  // B cw  = top edge goes RIGHT          → arrow pointing right at top
+  // B ccw = top edge goes LEFT           → arrow pointing left at top
+  // D cw  = front-bottom row goes LEFT   → arrow pointing left on bottom
+  // D ccw = front-bottom row goes RIGHT  → arrow pointing right on bottom
+  const straightArrow: Record<string, { x1:number;y1:number;x2:number;y2:number;hx:number;hy:number } | null> = {
+    left_cw:     { x1:18, y1:52, x2:18, y2:98, hx:18, hy:98 },  // down
+    left_ccw:    { x1:18, y1:98, x2:18, y2:52, hx:18, hy:52 },  // up
+    left_two:    null,
+    back_cw:     { x1:20, y1:25, x2:90, y2:25, hx:90, hy:25 },  // right
+    back_ccw:    { x1:90, y1:25, x2:20, y2:25, hx:20, hy:25 },  // left
+    back_two:    null,
+    bottom_cw:   { x1:85, y1:115, x2:35, y2:115, hx:35, hy:115 }, // left
+    bottom_ccw:  { x1:35, y1:115, x2:85, y2:115, hx:85, hy:115 }, // right
+    bottom_two:  null,
   };
+
+  const needsStraightArrow = face === "left" || face === "back" || face === "bottom";
+  const straightKey = needsStraightArrow ? `${face}_${arrowDir}` : "";
+  const sa = straightArrow[straightKey] ?? null;
 
   return (
     <div className="flex flex-col items-center gap-2">
       <svg viewBox="0 0 120 140" className="w-36 h-36 sm:w-44 sm:h-44 drop-shadow-lg">
         {/* Left face */}
-        <polygon points={leftFace} fill={face === "left" ? "#f97316" : c.right} stroke="#374151" strokeWidth="2" />
+        <polygon points={leftFace}  fill={face === "left"  ? "#f97316" : face === "front" ? "#22c55e" : c.right} stroke="#374151" strokeWidth="2" />
         {/* Right face */}
         <polygon points={rightFace} fill={face === "right" ? "#ef4444" : c.right} stroke="#374151" strokeWidth="2" />
         {/* Top face */}
-        <polygon points={topFace} fill={face === "top" ? "#fbbf24" : c.top} stroke="#374151" strokeWidth="2" />
-        {/* Front face highlight label */}
-        {face === "front" && (
-          <polygon points={leftFace} fill="#22c55e" stroke="#374151" strokeWidth="2" />
-        )}
-        {/* Back/bottom indicators */}
-        {face === "back" && (
-          <text x="60" y="120" textAnchor="middle" fontSize="10" fill="#1e3a8a" fontWeight="bold">BACK ↩</text>
-        )}
-        {face === "bottom" && (
-          <text x="60" y="120" textAnchor="middle" fontSize="10" fill="#713f12" fontWeight="bold">BOTTOM ↓</text>
-        )}
-        {/* Arrow */}
+        <polygon points={topFace}   fill={face === "top"   ? "#fbbf24" : c.top}   stroke="#374151" strokeWidth="2" />
+
+        {/* Circular arrow for front/top/right */}
         {(face === "front" || face === "top" || face === "right") && (
           <g opacity="0.9">
             <path d={arrowPath} fill="none" stroke="#1e40af" strokeWidth="3" strokeLinecap="round" />
-            {arrowDir === "cw" && <polygon points="55,44 70,38 68,52" fill="#1e40af" />}
+            {arrowDir === "cw"  && <polygon points="55,44 70,38 68,52" fill="#1e40af" />}
             {arrowDir === "ccw" && <polygon points="65,44 50,38 52,52" fill="#1e40af" />}
             {arrowDir === "two" && (
               <>
@@ -87,20 +92,36 @@ function CubeVisual({ face, arrowDir }: { face: string; arrowDir: "cw" | "ccw" |
             )}
           </g>
         )}
+
+        {/* Straight arrow for left/back/bottom */}
+        {needsStraightArrow && sa && (
+          <g opacity="0.95">
+            <line x1={sa.x1} y1={sa.y1} x2={sa.x2} y2={sa.y2} stroke="#1e40af" strokeWidth="3" strokeLinecap="round" />
+            {/* Arrowhead */}
+            {sa.hx === sa.x2 && sa.hy > sa.y1 && <polygon points={`${sa.hx-6},${sa.hy-10} ${sa.hx+6},${sa.hy-10} ${sa.hx},${sa.hy+2}`} fill="#1e40af" />}
+            {sa.hx === sa.x2 && sa.hy < sa.y1 && <polygon points={`${sa.hx-6},${sa.hy+10} ${sa.hx+6},${sa.hy+10} ${sa.hx},${sa.hy-2}`} fill="#1e40af" />}
+            {sa.hy === sa.y2 && sa.hx > sa.x1 && <polygon points={`${sa.hx-10},${sa.hy-6} ${sa.hx-10},${sa.hy+6} ${sa.hx+2},${sa.hy}`} fill="#1e40af" />}
+            {sa.hy === sa.y2 && sa.hx < sa.x1 && <polygon points={`${sa.hx+10},${sa.hy-6} ${sa.hx+10},${sa.hy+6} ${sa.hx-2},${sa.hy}`} fill="#1e40af" />}
+          </g>
+        )}
+        {/* X2 double arrow for left/back/bottom */}
+        {needsStraightArrow && arrowDir === "two" && (
+          <g opacity="0.9">
+            <line x1="35" y1="75" x2="85" y2="75" stroke="#1e40af" strokeWidth="3" />
+            <polygon points="80,68 90,75 80,82" fill="#1e40af" />
+            <polygon points="40,68 30,75 40,82" fill="#1e40af" />
+          </g>
+        )}
       </svg>
 
       {/* Highlighted face badge */}
       <div
         className="px-4 py-1.5 rounded-full font-black text-sm shadow"
-        style={{ backgroundColor: c.top === "#f59e0b" ? "#fef3c7" : c.right === "#ef4444" ? "#fee2e2" : "#dcfce7",
+        style={{ backgroundColor: face === "top" ? "#fef3c7" : face === "right" ? "#fee2e2" : face === "front" ? "#dcfce7" : face === "left" ? "#ffedd5" : face === "bottom" ? "#fef9c3" : "#dbeafe",
                  color: faceLabelColor[face] ?? "#1f2937" }}
       >
-        ➡ {faceLabel[face] ?? face.toUpperCase()}
+        ➡ {faceLabel[face] ?? face.toUpperCase()} face
       </div>
-
-      {showNote && (
-        <p className="text-xs font-bold text-gray-500 text-center">{noteText[face]}</p>
-      )}
     </div>
   );
 }
@@ -167,6 +188,17 @@ export default function SolutionViewer({ moves, onBack }: Props) {
         >
           📖 <span className="hidden sm:inline">Move</span> Guide
         </button>
+      </div>
+
+      {/* Orientation reminder — must hold cube consistently throughout */}
+      <div className="w-full bg-amber-50 border-2 border-amber-300 rounded-2xl px-4 py-3 flex items-center gap-3">
+        <span className="text-2xl flex-shrink-0">📌</span>
+        <p className="text-sm font-bold text-amber-900 leading-snug">
+          Hold your cube with{" "}
+          <span className="text-gray-800 font-black">WHITE on TOP</span> and{" "}
+          <span className="text-green-700 font-black">GREEN facing YOU</span>{" "}
+          for <em>every</em> move — don&apos;t rotate the whole cube!
+        </p>
       </div>
 
       {/* Progress bar */}
